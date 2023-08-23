@@ -809,6 +809,10 @@
     ]
   }
 
-module.exports = {
-  events, users, locations, participants
-}
+  module.exports = {
+    events,
+    users,
+    locations,
+    participants
+  };
+  
