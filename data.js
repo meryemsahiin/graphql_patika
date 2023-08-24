@@ -1,5 +1,4 @@
-{
-    events = [
+export const events = [
       {
         "id": 1,
         "title": "Poker night",
@@ -250,8 +249,8 @@
         "location_id": 12,
         "user_id": 12
       }
-    ],
-    locations = [
+    ];
+   export const locations = [
       {
         "id": 1,
         "name": "Lake Casandra",
@@ -427,8 +426,8 @@
         "lat": -44.9507,
         "lng": -170.9158
       }
-    ],
-    users = [
+    ]
+   export const users = [
       {
         "id": 1,
         "username": "Strawberry6",
@@ -554,8 +553,8 @@
         "username": "Fig2",
         "email": "fig2@gmail.com"
       }
-    ],
-    participants = [
+    ]
+    export const participants = [
       {
         "id": 1,
         "user_id": 1,
@@ -807,12 +806,14 @@
         "event_id": 12
       }
     ]
-  }
 
-  module.exports = {
-    events,
-    users,
-    locations,
-    participants
-  };
+  // module.exports = {
+  //   events,
+  //   users,
+  //   locations,
+  //   participants
+  // };
   
+  
+
+  // "graphql": "^16.8.0",
