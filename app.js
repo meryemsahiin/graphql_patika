@@ -1,17 +1,18 @@
 import { createServer } from 'node:http'
 import { createPubSub, createSchema, createYoga, map, pipe, Repeater} from 'graphql-yoga'
 import { events, locations, users, participants } from './data.js';
+
  
 const uid = function () {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
   };
 
-let globalCounter = 0
-const pubSub = createPubSub()
+const pubSub = createPubSub();
+
  
 const yoga = createYoga({
   schema: createSchema({
-    typeDefs: /* GraphQL */ `
+      typeDefs: `
 
     # User
 
@@ -133,8 +134,7 @@ const yoga = createYoga({
       }
  
       type Subscription {
-        globalCounter: Int!
-        userCreated: User!
+        users: [User!]!
       }
  
       type Mutation {
@@ -162,8 +162,10 @@ const yoga = createYoga({
     deleteParticipant(id: ID!): Participant!
     deleteAllParticipants: DeleteAllOutPut!
       }
-    `,
-    resolvers: {
+      `,
+      context: ({req, res}) => ({req, res, pubSub}),
+    }),
+      resolvers: {
       Query: {
         users: () => users,
     user: (parent, args) => users.find((user) => user.id == args.id),
@@ -178,12 +180,11 @@ const yoga = createYoga({
     participants: () => participants,
     participant: (parent, args) =>
       participants.find((participant) => participant.id == args.id),
-      },
+      }, 
       User: {
         events: (parent, args) =>
           events.filter((event) => event.user_id == parent.id),
-      },
-    
+      },   
       Event: {
         users: (parent, args) => users.filter((user) => user.id == parent.user_id),
     
@@ -194,8 +195,7 @@ const yoga = createYoga({
           participants.filter(
             (participant) => participant.event_id == parent.event_id
           ),
-      },
-    
+      },   
       Location: {
         events: (parent, args) =>
           events.filter((event) => event.location_id == parent.id),
@@ -206,47 +206,49 @@ const yoga = createYoga({
         event: (parent, args) =>
           events.find((event) => event.id == parent.event_id),
       },
+      // Subscription: {
+      //   userCreated: {
+      //     subscribe: (_, __, { pubSub }) => pubSub.asyncIterator('userCreated'),
+      //   },
+      //   userUpdated: {
+      //     subscribe: (_, __, { pubSub }) => pubSub.asyncIterator('userUpdated'),
+      //   },
+      //   userDeleted: {
+      //     subscribe: (_, __, { pubSub }) => pubSub.asyncIterator('userDeleted'),
+      //   },
+      // },
       Subscription: {
-        // globalCounter: {
-        //   // Merge initial value with source stream of new values
-        //   subscribe: () =>
-        //     pipe(
-        //       Repeater.merge([
-        //         // cause an initial event so the
-        //         // globalCounter is streamed to the client
-        //         // upon initiating the subscription
-        //         undefined,
-        //         // event stream for future updates
-        //         pubSub.subscribe('globalCounter:change')
-        //       ]),
-        //       // map all stream values to the latest globalCounter
-        //       map(() => globalCounter)
-        //     ),
-        //   resolve: payload => payload
-        // },
-        userCreated: {
-            // subscribe: (_, __, {pubSub}) => pubSub.asyncIterator('userCreated'),
-            subscribe: (_, __, {pubSub}) => pipe(
-              Repeater.merge([undefined, pubSub.subscribe('userCreated:change')]),
-              map(() => userCreated)
+        users: {
+          // Merge initial value with source streams of new values
+          subscribe: () =>
+            pipe(
+              Repeater.merge([
+                undefined,
+                pubSub.subscribe('userCreated'),
+                pubSub.subscribe('userUpdated'),
+                pubSub.subscribe('userDeleted')
+              ]),
+              // map all stream values to the latest user
+              map(() => users)
             ),
-            resolve: payload => payload
-        },
+          resolve: (payload) => payload
+        }
       },
+      
       Mutation: {
         
     // User
-    createUser: (_, { data }, {pubSub}) => {
+      createUser: (_, { data }, {pubSub}) => {
         const user = {
           id: uid(),
           ...data,
         };
         users.push(user);
-        pubSub.publish('userCreated', {user})
+        pubSub.publish('userCreated', {userCreated: user})
 
         return user;
       },
-      updateUser: (parent, { id, data }) => {
+      updateUser: ( _, { id, data }) => {
         const user_index = users.findIndex((user) => user.id == id);
   
         if (user_index == -1) {
@@ -256,8 +258,10 @@ const yoga = createYoga({
           ...users[user_index],
           ...data,
         });
+        pubSub.publish('userUpdated', {userUpdated: updatedUser})
         return updatedUser;
       },
+          
       deleteUser: (parent, {id}) => {
           const user_index = users.findIndex(user => user.id == id);
   
@@ -267,8 +271,14 @@ const yoga = createYoga({
           const deletedUser = users[user_index]
           users.splice(user_index, 1);
   
+          pubSub.publish('userDeleted', {userDeleted: deletedUser})
           return deletedUser;
       },
+      // deleteUser() {
+      //   users = 0;
+      //   pubSub.publish('userDeleted')
+      //   return true
+      // },
       deleteAllUsers: () => {
           const length = users.length;
           users.splice(0, length);
@@ -390,11 +400,11 @@ const yoga = createYoga({
           return {
               count: length,
           }
-      }
       },
-      }
-    })
-  })
+      },
+    },
+
+})
 
  
 const server = createServer(yoga)
